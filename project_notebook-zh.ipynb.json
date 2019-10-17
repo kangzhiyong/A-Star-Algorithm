@@ -1,0 +1,330 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# 123 实现一个路线规划编制程序\n",
+    "在这个项目中，你将使用`A*`搜索实现一个“Google-maps”风格的路线规划算法。"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<script>requirejs.config({paths: { 'plotly': ['https://cdn.plot.ly/plotly-latest.min']},});if(!window.Plotly) {{require(['plotly'],function(plotly) {window.Plotly=plotly;});}}</script>"
+      ],
+      "text/vnd.plotly.v1+html": [
+       "<script>requirejs.config({paths: { 'plotly': ['https://cdn.plot.ly/plotly-latest.min']},});if(!window.Plotly) {{require(['plotly'],function(plotly) {window.Plotly=plotly;});}}</script>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/html": [
+       "<script>requirejs.config({paths: { 'plotly': ['https://cdn.plot.ly/plotly-latest.min']},});if(!window.Plotly) {{require(['plotly'],function(plotly) {window.Plotly=plotly;});}}</script>"
+      ],
+      "text/vnd.plotly.v1+html": [
+       "<script>requirejs.config({paths: { 'plotly': ['https://cdn.plot.ly/plotly-latest.min']},});if(!window.Plotly) {{require(['plotly'],function(plotly) {window.Plotly=plotly;});}}</script>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "# Run this cell first!\n",
+    "\n",
+    "from helpers import Map, load_map, show_map\n",
+    "from helper import Maps, load_maps, show_maps\n",
+    "from student_code import shortest_path\n",
+    "\n",
+    "%load_ext autoreload\n",
+    "%autoreload 2"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Map 基础"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [],
+   "source": [
+    "map_10 = load_map('map-10.pickle')\n",
+    "show_maps(map_10)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "上面的地图（如果你没有看到，请运行代码单元格）\n",
+    "\n",
+    "**如果由于网络问题，仍然不显示地图**\n",
+    "**请运行show_maps(map_10)，并单击左上角Jupyter回到上级菜单，下载.html文件既可浏览。**\n",
+    "\n",
+    "显示了一个包含10个交叉点的不连贯网络。左边的两个交叉口相互连接，但它们没有连接到道路网络的其余部分。在上面的图表中，2个节点（交叉点）之间的边缘代表一条文字直线道路，而不仅仅是2个城市的抽象连接。\n",
+    "\n",
+    "这些`Map`对象有两个属性，你可以使用它们来实现A *搜索：`intersections`和`roads` 。\n",
+    "\n",
+    "**Intersections**\n",
+    "\n",
+    "`intersections`被表示为一个词典。\n",
+    "\n",
+    "在这个例子中，有10个交点，每个交点用x、y坐标标识。坐标如下所示。你可以将鼠标悬停在上图中的每个点上查看交叉点编号。"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "{0: [0.7798606835438107, 0.6922727646627362],\n",
+       " 1: [0.7647837074641568, 0.3252670836724646],\n",
+       " 2: [0.7155217893995438, 0.20026498027300055],\n",
+       " 3: [0.7076566826610747, 0.3278339270610988],\n",
+       " 4: [0.8325506249953353, 0.02310946309985762],\n",
+       " 5: [0.49016747075266875, 0.5464878695400415],\n",
+       " 6: [0.8820353070895344, 0.6791919587749445],\n",
+       " 7: [0.46247219371675075, 0.6258061621642713],\n",
+       " 8: [0.11622158839385677, 0.11236327488812581],\n",
+       " 9: [0.1285377678230034, 0.3285840695698353]}"
+      ]
+     },
+     "execution_count": 3,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "map_10.intersections"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "**Roads**\n",
+    "\n",
+    "`roads`属性是一个列表，如果`i` 是一个交叉点，`roads[i]`包含一个交叉点`i`连接到的所有交叉点列表。"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[7, 6, 5]"
+      ]
+     },
+     "execution_count": 4,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# this shows that intersection 0 connects to intersections 7, 6, and 5\n",
+    "map_10.roads[0] "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[7, 6, 5],\n",
+       " [4, 3, 2],\n",
+       " [4, 3, 1],\n",
+       " [5, 4, 1, 2],\n",
+       " [1, 2, 3],\n",
+       " [7, 0, 3],\n",
+       " [0],\n",
+       " [0, 5],\n",
+       " [9],\n",
+       " [8]]"
+      ]
+     },
+     "execution_count": 5,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# This shows the full connectivity of the map\n",
+    "map_10.roads"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# map_40 is a bigger map than map_10\n",
+    "map_40 = load_map('map-40.pickle')\n",
+    "show_maps(map_40)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "**如果由于网络问题，仍然不显示地图**\n",
+    "**请运行show_maps(map_40)，并单击左上角Jupyter回到上级菜单，下载.html文件既可浏览。**\n",
+    "\n",
+    "### 高级可视化\n",
+    "\n",
+    "上图显示了一个跨越40个不同交叉点的道路网络（标记为0到39）。\n",
+    "\n",
+    "生成此地图网络的`show_map`函数还需要一些可选参数，这些参数对于将你要编写的搜索算法的输出可视化可能很有用。\n",
+    "\n",
+    "* `start` - 搜索算法的“开始”节点。\n",
+    "* `goal`  - “目标”节点。\n",
+    "* `path`  - 与地图上的有效交叉点访问序列相对应的整数数组。"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# run this code, note the effect of including the optional\n",
+    "# parameters in the function call.\n",
+    "show_maps(map_40, start=5, goal=34, path=[5,16,37,12,34])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### 编写你的算法\n",
+    "你应该在另一个选项卡中打开文件`student_code.py`并在那里编写你的算法。选择`File > Open`，然后选择上一句所说的这个文件。\n",
+    "\n",
+    "你编写的算法将负责生成类似上面传入`show_map`的`path`。事实上，当调用相同的地图、起始点和目标点时，如上所述，算法应该生成路径`[5, 16, 37, 12, 34]` 。"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[5, 16, 37, 12, 34]"
+      ]
+     },
+     "execution_count": 8,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    " shortest_path(map_40, 5, 34)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "great! Your code works for these inputs!\n"
+     ]
+    }
+   ],
+   "source": [
+    "path = shortest_path(map_40, 5, 34)\n",
+    "if path == [5, 16, 37, 12, 34]:\n",
+    "    print(\"great! Your code works for these inputs!\")\n",
+    "else:\n",
+    "    print(\"something is off, your code produced the following:\")\n",
+    "    print(path)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### 测试你的代码\n",
+    "如果下面的代码没有产生错误，那么你的算法的运行就是正确的。你马上就要提交项目了！在提交之前，请阅读以下提交清单：\n",
+    "\n",
+    "**提交清单**\n",
+    "\n",
+    "1. 我的代码是否通过了所有测试？\n",
+    "2. 我的代码是否实现了`A*`搜索，而不是其他搜索算法？\n",
+    "3. 我是否使用**可接受的启发式程序**来实现搜索目标？\n",
+    "4. 我使用的数据结构是否可以避免不必要的慢速查找？\n",
+    "\n",
+    "当你对所有这些问题的回答都是“是的”时，请按下右下方的提交按钮进行提交！"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "All tests pass! Congratulations!\n"
+     ]
+    }
+   ],
+   "source": [
+    "from test import test\n",
+    "\n",
+    "test(shortest_path)"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.6.3"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
